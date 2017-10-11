@@ -1,5 +1,6 @@
 package hongzicong.calculator01;
 
+import android.content.Intent;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.LinearLayoutManager;
@@ -16,6 +17,14 @@ import java.math.BigDecimal;
 import java.math.MathContext;
 import android.widget.HorizontalScrollView;
 import android.view.WindowManager;
+import android.content.Context;
+import android.widget.Toast;
+
+import java.io.*;
+
+import com.getbase.floatingactionbutton.FloatingActionButton;
+import com.getbase.floatingactionbutton.FloatingActionsMenu;
+import com.yalantis.phoenix.PullToRefreshView;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -38,8 +47,10 @@ public class MainActivity extends AppCompatActivity {
     private Button divide;
     private Button equal;
     private Button clear;
+    private Button turn;
     private TextView resultNum;
     private TextView tempNum; //tempNum include tempStr and operator
+    private TextView precise;
     private StringBuffer resultStr;
     private StringBuffer tempStr; //conclude comma and number ,not conclude sign
     private String operator;
@@ -50,13 +61,51 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayoutManager layoutManger;
     private OperNumAdapter adapter;
     private MathContext mathContext;
-
+    private PullToRefreshView mPullToRefreshView;
+    private final int REFRESH_DELAY=500;
     private boolean HASBEENEND=false;
+    private final MathContext mathContextList[]={MathContext.DECIMAL32,MathContext.DECIMAL64,MathContext.DECIMAL128,MathContext.UNLIMITED};
+    private int decimalNum=1;
+    private StringBuffer oldResultStr=new StringBuffer();
+    private String mathContextListString[]={"Decimal 32","Decimal 64","Decimal 128","Decimal unlimited"};
+    private FloatingActionsMenu floatingActionsMenu;
+    private FloatingActionButton save;
+    private FloatingActionButton load;
+    private FloatingActionButton show;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        setTempList();
+        setAllButton();
+        setAllText();
+        setAllListener();
+        setActionBar();
+        mathContext=mathContextList[decimalNum];
+        mPullToRefreshView=(PullToRefreshView)findViewById(R.id.pull_to_refresh);
+        mPullToRefreshView.setOnRefreshListener(new PullToRefreshView.OnRefreshListener(){
+            @Override
+            public void onRefresh() {
+                mPullToRefreshView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        mPullToRefreshView.setRefreshing(false);
+                    }
+                },REFRESH_DELAY);
+                mathContext=mathContextList[(++decimalNum)%4];
+                precise.setText(mathContextListString[decimalNum%4]);
+            }
+        });
+
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+    }
+
+    private void setActionBar(){
         ActionBar actionBar=getSupportActionBar();
         if(actionBar!=null){
             actionBar.hide();
@@ -65,11 +114,6 @@ public class MainActivity extends AppCompatActivity {
         window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         window.setStatusBarColor(Color.GRAY);
-        mathContext=MathContext.DECIMAL64;
-        setTempList();
-        setAllButton();
-        setAllText();
-        setAllListener();
     }
 
     private void setTempList(){
@@ -106,6 +150,11 @@ public class MainActivity extends AppCompatActivity {
         equal=(Button)findViewById(R.id.equal);
         delete=(Button)findViewById(R.id.delete);
         clear=(Button)findViewById(R.id.clear);
+        turn=(Button)findViewById(R.id.turn_to_scientific);
+        floatingActionsMenu=(FloatingActionsMenu)findViewById(R.id.menu);
+        load=(FloatingActionButton)findViewById(R.id.loadTemp);
+        save=(FloatingActionButton)findViewById(R.id.saveTemp);
+        show=(FloatingActionButton)findViewById(R.id.showTemp);
     }
 
     private void setAllText(){
@@ -113,6 +162,7 @@ public class MainActivity extends AppCompatActivity {
         scrollText2=(HorizontalScrollView)findViewById(R.id.scorllText2);
         resultNum=(TextView)findViewById(R.id.resultNum);
         tempNum=(TextView) findViewById(R.id.tempNum);
+        precise=(TextView)findViewById(R.id.precise);
         initialText();
     }
 
@@ -137,6 +187,18 @@ public class MainActivity extends AppCompatActivity {
         setOperatorListener(multiple);
         setPercentListener();
         setEqualListener();
+        setTurnListener();
+        setShowListener();
+    }
+
+    private void setTurnListener(){
+        turn.setOnClickListener(new View.OnClickListener(){
+            @Override
+            public void onClick(View v) {
+                Intent intent=new Intent(MainActivity.this,Scientific.class);
+                startActivity(intent);
+            }
+        });
     }
 
     private void setClearListener(){
@@ -154,11 +216,26 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void setShowListener(){
+        show.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                save();
+                Intent intent=new Intent(MainActivity.this,SaveActivity.class);
+                startActivity(intent);
+            }
+        });
+    }
+
     //C when has enter
     private void oneClear(){
         initialText();
         tempNum.setText(tempStr);
         resultNum.setText(resultStr);
+        OperNum tempOperNum1=new OperNum("- - - - - - - - - - - - - - - - - - - - -",new StringBuffer());
+        operNumList.add(tempOperNum1);
+        updateTempList();
+        oldResultStr=new StringBuffer();
     }
 
     //AC when not enter any number
@@ -168,6 +245,7 @@ public class MainActivity extends AppCompatActivity {
         updateTempList();
         tempNum.setText(tempStr);
         resultNum.setText(resultStr);
+        oldResultStr=new StringBuffer();
     }
 
     private void setDeleteListener(){
@@ -205,12 +283,17 @@ public class MainActivity extends AppCompatActivity {
         mButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(HASBEENEND){
-                    oneClear();
+                if(HASBEENEND&&!oldResultStr.toString().isEmpty()){
+                    resultStr=new StringBuffer(oldResultStr);
+                    tempStr=new StringBuffer();
+                    tempNum.setTextSize(50);
+                    resultNum.setTextSize(35);
+                    tempNum.setTextColor(Color.BLACK);
+                    resultNum.setTextColor(Color.GRAY);
                     HASBEENEND=false;
                 }
                 //at the begin,change the tempNum
-                if (operator.isEmpty()) {
+                if (operator.isEmpty()&&oldResultStr.toString().isEmpty()) {
                     OperNum tempOperNum=new OperNum(operator,tempStr);
                     operNumList.add(tempOperNum);
                     operator = new String(operatorStr);
@@ -218,7 +301,7 @@ public class MainActivity extends AppCompatActivity {
                     tempStr = new StringBuffer();
                     updateTempText();
                     updateTempList();
-                    resultNum.setText("= "+resultStr);
+                    resultNum.setText(" = "+resultStr);
                 }
                 //already has operator
                 else{
@@ -237,7 +320,7 @@ public class MainActivity extends AppCompatActivity {
                         updateTempText();
                         updateTempList();
                         resultStr = setIntComma(resultStr);
-                        resultNum.setText("= "+resultStr);
+                        resultNum.setText(" = "+resultStr);
                     }
                 }
             }
@@ -299,21 +382,35 @@ public class MainActivity extends AppCompatActivity {
                     return;
                 }
                 else if(operator.isEmpty()){
+                    OperNum tempOperNum1=new OperNum("= ",tempStr);
+                    OperNum tempOperNum2=new OperNum("- - - - - - - - - - - - - - - - - - - - -",new StringBuffer());
+                    operNumList.add(tempOperNum1);
+                    operNumList.add(tempOperNum2);
+                    updateTempList();
                     resultStr=new StringBuffer(tempStr);
-                    resultNum.setText("= "+resultStr);
+                    resultNum.setText(" = "+resultStr);
                     resultNum.setTextSize(45);
                     resultNum.setTextColor(Color.BLACK);
                     tempNum.setTextSize(28);
                     tempNum.setTextColor(Color.GRAY);
+                    oldResultStr=new StringBuffer(getNumFromStr(resultStr));
                 }
                 else{
                     operateToNum();
+                    OperNum tempOperNum1=new OperNum(operator,tempStr);
+                    OperNum tempOperNum2=new OperNum("= ",resultStr);
+                    OperNum tempOperNum3=new OperNum("- - - - - - - - - - - - - - - - - - - - -",new StringBuffer());
+                    operNumList.add(tempOperNum1);
+                    operNumList.add(tempOperNum2);
+                    operNumList.add(tempOperNum3);
+                    updateTempList();
                     resultStr = setIntComma(resultStr);
-                    resultNum.setText("= "+resultStr);
+                    resultNum.setText(" = "+resultStr);
                     resultNum.setTextSize(45);
                     resultNum.setTextColor(Color.BLACK);
                     tempNum.setTextSize(28);
                     tempNum.setTextColor(Color.GRAY);
+                    oldResultStr=new StringBuffer(getNumFromStr(resultStr));
                 }
                 HASBEENEND=true;
             }
@@ -456,6 +553,28 @@ public class MainActivity extends AppCompatActivity {
             return true;
         }
         return false;
+    }
+
+    private void save(){
+        FileOutputStream out;
+        BufferedWriter writer=null;
+        try{
+            out=openFileOutput("tempData",Context.MODE_PRIVATE);
+            writer=new BufferedWriter(new OutputStreamWriter(out));
+            for(int i=0;i<operNumList.size();++i){
+                writer.write(operNumList.get(i).toString()+"\n");
+            }
+        }catch(IOException e){
+            e.printStackTrace();
+        }finally{
+            try{
+                if(writer!=null){
+                    writer.close();
+                }
+            }catch (IOException e){
+                e.printStackTrace();
+            }
+        }
     }
 
 }

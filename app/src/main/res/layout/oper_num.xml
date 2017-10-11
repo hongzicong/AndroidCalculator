@@ -7,7 +7,8 @@
 
     <HorizontalScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+        android:layout_height="wrap_content"
+        android:scrollbars="none">
         <TextView
             android:id="@+id/oper_num_item"
             android:layout_width="wrap_content"
@@ -15,7 +16,7 @@
             android:layout_gravity="right"
             android:textIsSelectable="true"
             android:textColor="#888888"
-            android:textSize="30sp"/>
+            android:textSize="28sp"/>
     </HorizontalScrollView>
 
 
